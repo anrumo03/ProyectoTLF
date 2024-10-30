@@ -1,132 +1,152 @@
-# Algoritmo Shunting Yard 
-def shunt(infix):
-    # diccionario de caracteres especiales
-    especiales = {'*': 50, '.': 40, '|': 30, '+': 40, '?': 35}
+# Algoritmo Shunting Yard para convertir una expresión regular infix a postfix
+def shunt(infix_expression):
+    # Define la precedencia de operadores especiales en la expresión regular
+    precedence = {'*': 50, '.': 40, '|': 30, '+': 40, '?': 35}
 
-    pofix = ""
-    stack = ""
+    postfix_expression = ""
+    operator_stack = ""
 
-    for c in infix:
-        if c == '(':
-            stack = stack + c
-        elif c == ')':
-            while stack[-1] != '(':
-                # agrupa los elementos
-                pofix, stack = pofix + stack[-1], stack[:-1]
-            stack = stack[:-1]
-        elif c in especiales:
-            while stack and especiales.get(c, 0) <= especiales.get(stack[-1], 0):
-                pofix, stack = pofix + stack[-1], stack[:-1]
-            stack = stack + c
-
+    for char in infix_expression:
+        # Si es un paréntesis izquierdo, lo agrega al stack
+        if char == '(':
+            operator_stack += char
+        # Si es un paréntesis derecho, vacía el stack hasta encontrar el paréntesis izquierdo
+        elif char == ')':
+            while operator_stack[-1] != '(':
+                postfix_expression += operator_stack[-1]
+                operator_stack = operator_stack[:-1]
+            operator_stack = operator_stack[:-1]  # Elimina el paréntesis izquierdo
+        # Si es un operador, aplica la precedencia
+        elif char in precedence:
+            while operator_stack and precedence.get(char, 0) <= precedence.get(operator_stack[-1], 0):
+                postfix_expression += operator_stack[-1]
+                operator_stack = operator_stack[:-1]
+            operator_stack += char
         else:
-            pofix = pofix + c
+            # Si es un carácter regular, lo agrega directamente a la expresión postfix
+            postfix_expression += char
 
-    while stack:
-        # agrupa los elementos
-        pofix, stack = pofix + stack[-1], stack[:-1]
+    # Vacía el stack de operadores restantes
+    while operator_stack:
+        postfix_expression += operator_stack[-1]
+        operator_stack = operator_stack[:-1]
 
-    return pofix
+    return postfix_expression
+
 
 class State:
+    """Clase que representa un estado en el Autómata Finito No Determinista (NFA)."""
+
     def __init__(self):
-        # Cada estado tiene una lista de transiciones (para caracteres y ε-transiciones)
-        self.edges = []  # pares de (carácter, siguiente estado)
+        # Cada estado tiene una lista de transiciones con pares (carácter, siguiente estado)
+        self.transitions = []  # Lista de transiciones
+
 
 class NFA:
-    def __init__(self, start, accept):
-        self.start = start  # Estado inicial
-        self.accept = accept  # Estado de aceptación
+    """Clase que representa un NFA con un estado inicial y un estado de aceptación."""
 
-def compile_postfix(postfix):
+    def __init__(self, start_state, accept_state):
+        self.start_state = start_state  # Estado inicial del NFA
+        self.accept_state = accept_state  # Estado de aceptación del NFA
+
+
+def compile_postfix(postfix_expression):
     """Compila una expresión regular en notación postfix en un NFA usando el algoritmo de Thompson."""
     nfa_stack = []
 
-    for char in postfix:
-        if char.isalpha():  # Si es un símbolo (a-z)
-            # Crear un NFA simple para un carácter
-            start = State()
-            accept = State()
-            start.edges.append((char, accept))
-            nfa_stack.append(NFA(start, accept))
-        elif char == '.':  # Concatenación
+    for char in postfix_expression:
+        # Si el carácter es un símbolo alfabético, crea un NFA simple
+        if char.isalpha():
+            start_state = State()
+            accept_state = State()
+            start_state.transitions.append((char, accept_state))
+            nfa_stack.append(NFA(start_state, accept_state))
+        # Operador de concatenación
+        elif char == '.':
             nfa2 = nfa_stack.pop()
             nfa1 = nfa_stack.pop()
-            nfa1.accept.edges.append((None, nfa2.start))  # Conectar el aceptador del primero con el inicio del segundo
-            nfa_stack.append(NFA(nfa1.start, nfa2.accept))
-        elif char == '|':  # Alternativa (unión)
+            nfa1.accept_state.transitions.append((None, nfa2.start_state))
+            nfa_stack.append(NFA(nfa1.start_state, nfa2.accept_state))
+        # Operador de unión (alternativa)
+        elif char == '|':
             nfa2 = nfa_stack.pop()
             nfa1 = nfa_stack.pop()
-            start = State()
-            accept = State()
-            start.edges.append((None, nfa1.start))  # Transición vacía a ambos NFA
-            start.edges.append((None, nfa2.start))
-            nfa1.accept.edges.append((None, accept))
-            nfa2.accept.edges.append((None, accept))
-            nfa_stack.append(NFA(start, accept))
-        elif char == '*':  # Cierre de Kleene
+            start_state = State()
+            accept_state = State()
+            start_state.transitions.extend([(None, nfa1.start_state), (None, nfa2.start_state)])
+            nfa1.accept_state.transitions.append((None, accept_state))
+            nfa2.accept_state.transitions.append((None, accept_state))
+            nfa_stack.append(NFA(start_state, accept_state))
+        # Cierre de Kleene (cero o más repeticiones)
+        elif char == '*':
             nfa = nfa_stack.pop()
-            start = State()
-            accept = State()
-            start.edges.append((None, nfa.start))  # Conexión ε al NFA
-            start.edges.append((None, accept))  # Conexión ε directa a aceptador (0 repeticiones)
-            nfa.accept.edges.append((None, nfa.start))  # Conexión del final al inicio (para repeticiones)
-            nfa.accept.edges.append((None, accept))  # Conexión ε al nuevo aceptador
-            nfa_stack.append(NFA(start, accept))
-        elif char == '+':  # Cierre positivo (1 o más repeticiones)
+            start_state = State()
+            accept_state = State()
+            start_state.transitions.extend([(None, nfa.start_state), (None, accept_state)])
+            nfa.accept_state.transitions.extend([(None, nfa.start_state), (None, accept_state)])
+            nfa_stack.append(NFA(start_state, accept_state))
+        # Cierre positivo (uno o más repeticiones)
+        elif char == '+':
             nfa = nfa_stack.pop()
-            start = State()
-            accept = State()
-            start.edges.append((None, nfa.start))  # Primera repetición es obligatoria
-            nfa.accept.edges.append((None, nfa.start))  # Conexión del final al inicio (para más repeticiones)
-            nfa.accept.edges.append((None, accept))  # Conexión ε al nuevo aceptador
-            nfa_stack.append(NFA(start, accept))
+            start_state = State()
+            accept_state = State()
+            start_state.transitions.append((None, nfa.start_state))
+            nfa.accept_state.transitions.extend([(None, nfa.start_state), (None, accept_state)])
+            nfa_stack.append(NFA(start_state, accept_state))
 
-    # El resultado es el único NFA en la pila
+    # Devuelve el único NFA en la pila como el resultado final
     return nfa_stack.pop()
 
-# Función para probar si una cadena es aceptada por el NFA
-def follows_epsilon(state, current_states):
+
+def follows_epsilon(state, reachable_states):
     """Calcula el cierre epsilon (ε) de un estado."""
-    if state not in current_states:
-        current_states.add(state)
-        for (char, next_state) in state.edges:
-            if char is None:  # ε-transición
-                follows_epsilon(next_state, current_states)
+    if state not in reachable_states:
+        reachable_states.add(state)
+        for (transition_char, next_state) in state.transitions:
+            if transition_char is None:  # Transición ε
+                follows_epsilon(next_state, reachable_states)
+
 
 def simulate_nfa(nfa, input_string):
     """Simula la ejecución del NFA en una cadena de entrada."""
     current_states = set()
-    follows_epsilon(nfa.start, current_states)  # Cierre epsilon del estado inicial
+    follows_epsilon(nfa.start_state, current_states)  # Cierre epsilon del estado inicial
 
+    # Procesa cada carácter de la cadena de entrada
     for char in input_string:
         next_states = set()
         for state in current_states:
-            for (edge_char, next_state) in state.edges:
-                if edge_char == char:
-                    follows_epsilon(next_state, next_states)  # Calcula el cierre epsilon del siguiente estado
+            for (transition_char, next_state) in state.transitions:
+                if transition_char == char:
+                    follows_epsilon(next_state, next_states)
         current_states = next_states
 
-    # Verifica si el estado aceptador está en los estados alcanzados
-    return nfa.accept in current_states
+    # Verifica si el estado de aceptación es alcanzable
+    return nfa.accept_state in current_states
 
 
 def main():
+    # Solicita al usuario ingresar la expresión regular y las cadenas de prueba
     regex = input("Dame la expresión regular: ")
-    cadenas = []
+    test_strings = []
     while True:
         test = input("Ingresa una cadena para probar (o 'salir' para terminar): ")
         if test.lower() == 'salir':
             break
-        cadenas.append(test)
-        
-    postfix_regex = shunt(regex)  # Expresión regular en notación postfix
-    print(postfix_regex)
+        test_strings.append(test)
+
+    # Convierte la expresión regular infix a postfix
+    postfix_regex = shunt(regex)
+    print("Expresión en notación postfix:", postfix_regex)
+
+    # Compila el postfix en un NFA
     nfa = compile_postfix(postfix_regex)
 
-    for s in cadenas:
-        resultado = simulate_nfa(nfa, s)
-        print(f"¿La cadena '{s}' es aceptada? {resultado}")
+    # Prueba cada cadena y muestra si es aceptada o no
+    for s in test_strings:
+        result = simulate_nfa(nfa, s)
+        print(f"¿La cadena '{s}' es aceptada? {'Sí' if result else 'No'}")
 
 
+# Ejecuta la función principal
 main()
