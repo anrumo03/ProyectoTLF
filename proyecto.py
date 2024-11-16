@@ -116,7 +116,6 @@ def follows_epsilon(state, reachable_states):
             if transition_char is None:
                 follows_epsilon(next_state, reachable_states)
 
-
 def simulate_nfa(nfa, input_string):
     current_states = set()
     follows_epsilon(nfa.start_state, current_states)
@@ -128,13 +127,11 @@ def simulate_nfa(nfa, input_string):
                 if transition_char == char:
                     follows_epsilon(next_state, next_states)
 
-        if not next_states: #No se encontró ninguna transición de ningún estado actual con el símbolo char
-            next_states = current_states #Se continua con los mismos estados
-
-
-        current_states = next_states
+        # Corrected: Don't carry over previous states if no transition is found
+        current_states = next_states  # Update current_states directly
 
     return any(state == nfa.accept_state for state in current_states)
+
 
 def visualize_nfa(nfa):
     graph = nx.DiGraph()
