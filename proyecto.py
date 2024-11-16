@@ -3,19 +3,16 @@ from tkinter import messagebox
 import matplotlib.pyplot as plt
 import networkx as nx
 
-
 # Clase para los estados en el NFA
 class State:
     def __init__(self):
         self.transitions = []  # Lista de transiciones (carácter, siguiente estado)
-
 
 # Clase para el NFA
 class NFA:
     def __init__(self, start_state, accept_state):
         self.start_state = start_state
         self.accept_state = accept_state
-
 
 # Función para convertir infix a postfix (Shunting Yard)
 def shunt(infix_expression):
@@ -127,7 +124,6 @@ def simulate_nfa(nfa, input_string):
                 if transition_char == char:
                     follows_epsilon(next_state, next_states)
 
-        # Corrected: Don't carry over previous states if no transition is found
         current_states = next_states  # Update current_states directly
 
     return any(state == nfa.accept_state for state in current_states)
@@ -166,12 +162,11 @@ def visualize_nfa(nfa):
             if next_state not in visited:
                 queue.append(next_state)
 
-    pos = nx.spring_layout(graph)
+    pos = nx.spring_layout(graph)  # Alternative: try using graphviz_layout(graph)
     labels = nx.get_edge_attributes(graph, 'label')
-    nx.draw(graph, pos, with_labels=True, node_size=500, node_color="skyblue")
+    nx.draw(graph, pos, with_labels=True, node_size=500, node_color="skyblue", node_shape='o')
     nx.draw_networkx_edge_labels(graph, pos, edge_labels=labels)
     plt.show()
-
 
 def run_application():
     def validate_inputs():
