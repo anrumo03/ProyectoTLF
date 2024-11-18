@@ -17,7 +17,6 @@ class NFA:
 # Función para convertir infix a postfix (Shunting Yard)
 def shunt(infix_expression):
     precedence = {'*': 50, '.': 40, '|': 30, '+': 40, '?': 35}
-    valid_chars = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789|*+?.()")  # Caracteres válidos
     postfix_expression = ""
     operator_stack = ""
 
@@ -123,50 +122,82 @@ def simulate_nfa(nfa, input_string):
             for transition_char, next_state in state.transitions:
                 if transition_char == char:
                     follows_epsilon(next_state, next_states)
-
-        current_states = next_states  # Update current_states directly
+        current_states = next_states
 
     return any(state == nfa.accept_state for state in current_states)
 
+def nfa_to_dfa(nfa):
+    dfa_states = {}
+    dfa_transitions = {}
 
-def visualize_nfa(nfa):
-    graph = nx.DiGraph()
-    node_count = 0
-    node_map = {}
+    def closure(states):
+        result = set()
+        for state in states:
+            follows_epsilon(state, result)
+        return frozenset(result)
 
-    def add_state(state):
-        nonlocal node_count
-        if state not in node_map:
-            node_map[state] = f"q{node_count}"
-            node_count += 1
-            if state == nfa.accept_state:
-                graph.add_node(node_map[state], shape='doublecircle')
-            else:
-                graph.add_node(node_map[state])
-        return node_map[state]
-
-    queue = [nfa.start_state]
-    visited = set()
+    start_state = closure({nfa.start_state})
+    dfa_states[start_state] = "q0"
+    queue = [start_state]
+    count = 1
 
     while queue:
         current_state = queue.pop(0)
-        if current_state in visited:
-            continue
-        visited.add(current_state)
 
-        current_node = add_state(current_state)
+        # Obtener todos los caracteres posibles de las transiciones del estado actual
+        chars = set()
+        for state in current_state:
+            for char, _ in state.transitions:
+                if char is not None:
+                    chars.add(char)
 
-        for char, next_state in current_state.transitions:
-            next_node = add_state(next_state)
-            graph.add_edge(current_node, next_node, label=char if char is not None else "ε")
-            if next_state not in visited:
-                queue.append(next_state)
+        for char in chars:  # Iterar sobre todos los caracteres posibles
+            next_states = set()
+            for state in current_state:
+                for transition_char, next_state in state.transitions:
+                    if transition_char == char:
+                        follows_epsilon(next_state, next_states)
+            next_state_closure = closure(next_states)
 
-    pos = nx.spring_layout(graph)  # Alternative: try using graphviz_layout(graph)
+            if next_state_closure not in dfa_states:
+                dfa_states[next_state_closure] = f"q{count}"
+                count += 1
+                queue.append(next_state_closure)
+
+            dfa_transitions[(dfa_states[current_state], char)] = dfa_states[next_state_closure]
+
+    # Identificar estados de aceptación del DFA
+    dfa_accept_states = [dfa_states[state] for state in dfa_states if nfa.accept_state in state]
+
+    return dfa_states, dfa_transitions, dfa_accept_states
+
+
+def visualize_dfa(dfa_states, dfa_transitions, dfa_accept_states):
+    graph = nx.DiGraph()
+
+    # 1. Corrección: Marcar estados de aceptación al crear los nodos
+    for state, label in dfa_states.items():
+        graph.add_node(label, shape='doublecircle' if label in dfa_accept_states else 'o')  # Corrección
+
+    # Agregar transiciones al grafo
+    for (start, char), end in dfa_transitions.items():
+        graph.add_edge(start, end, label=char)
+
+    pos = nx.spring_layout(graph)
     labels = nx.get_edge_attributes(graph, 'label')
-    nx.draw(graph, pos, with_labels=True, node_size=500, node_color="skyblue", node_shape='o')
+
+    # Dibujar nodos y transiciones
+    node_shapes = {label: 'o' for label in graph.nodes()}
+    for accept_state in dfa_accept_states:
+        node_shapes[accept_state] = 'doublecircle'
+
+    nx.draw(graph, pos, with_labels=True, node_size=500, node_color="skyblue")
     nx.draw_networkx_edge_labels(graph, pos, edge_labels=labels)
+    plt.title("DFA")
     plt.show()
+
+
+
 
 def run_application():
     def validate_inputs():
@@ -212,18 +243,19 @@ def run_application():
 
     def generate_automata():
         regex = regex_entry.get()
-
         if not regex:
             messagebox.showerror("Error", "Por favor, ingresa una expresión regular.")
             return
         try:
             postfix_regex = shunt(regex)
             nfa = compile_postfix(postfix_regex)
-            visualize_nfa(nfa)
+            dfa_states, dfa_transitions, dfa_accept_states = nfa_to_dfa(nfa)
+            visualize_dfa(dfa_states, dfa_transitions, dfa_accept_states)
         except ValueError as ve:
             messagebox.showerror("Error de expresión regular", str(ve))
         except Exception as e:
             messagebox.showerror("Error inesperado", f"Ocurrió un error: {e}")
+
 
     def center_window(window):
         window.update_idletasks()
